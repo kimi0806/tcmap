@@ -1,0 +1,3344 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Catasto Map Viewer</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #1f2933;
+            background: #ffffff;
+        }
+
+        header {
+            padding: 14px 18px;
+            background: #263238;
+            color: white;
+        }
+
+        header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .search {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px 18px;
+            background: #eef2f4;
+            border-bottom: 1px solid #d8dee3;
+        }
+
+        .search > label {
+            display: grid;
+            gap: 5px;
+            width: 180px;
+        }
+
+        #searchMode {
+            width: 180px;
+        }
+
+        #cadastralSearch,
+        #addressSearch {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: end;
+            gap: 12px;
+            width: 100%;
+        }
+
+        #addressSearch {
+            display: none;
+        }
+
+        #address {
+            width: 420px;
+        }
+
+        #addressCadastralResult {
+            display: none;
+            padding: 10px 18px;
+            background: #ffffff;
+            border-bottom: 1px solid #d8dee3;
+            font-size: 15px;
+        }
+
+        #addressCadastralResult .cadastral-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        #addressCadastralResult .cadastral-value {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+        label {
+            display: grid;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        input,
+        select {
+            padding: 9px;
+            width: 180px;
+            border: 1px solid #b8c1c8;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background: white;
+        }
+
+        #foglio,
+        #particella {
+            width: 110px;
+        }
+
+        button {
+            padding: 10px 18px;
+            cursor: pointer;
+            border: 0;
+            border-radius: 4px;
+            background: #006d77;
+            color: white;
+            font-weight: 700;
+        }
+
+        button:hover {
+            background: #00565f;
+        }
+
+        #map {
+            height: 58vh;
+            min-height: 420px;
+        }
+
+        #result {
+            padding: 14px 18px 24px;
+        }
+
+        #status {
+            margin: 0 0 12px;
+            font-weight: 700;
+        }
+
+        #details {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(280px, 1fr)
+            );
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .parcel {
+            border: 1px solid #d8dee3;
+            border-radius: 6px;
+            padding: 12px;
+            background: white;
+        }
+
+        .parcel h4 {
+            margin: 0 0 10px;
+        }
+
+        .parcel dl {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 5px 10px;
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .parcel dt {
+            font-weight: 700;
+        }
+
+        .parcel dd {
+            margin: 0;
+            word-break: break-word;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            overflow: auto;
+            max-height: 300px;
+            font-size: 12px;
+        }
+
+        .coordinates {
+            margin-top: 12px;
+        }
+
+        .coordinates table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .coordinates th,
+        .coordinates td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .coordinates th {
+            background: #f4f4f4;
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * PARCEL LABELS
+         * ---------------------------------------------------------
+         */
+
+        /*
+         * Normal Particella number.
+         *
+         * Every parcel receives this label.
+         */
+
+        .parcel-number-label {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #111111 !important;
+            font-size: 14px;
+            font-weight: 700;
+            text-shadow:
+                0 0 2px white,
+                0 0 2px white,
+                0 0 3px white;
+            padding: 0 !important;
+        }
+
+        .parcel-number-label::before {
+            display: none !important;
+        }
+
+
+        /*
+         * Target parcel label.
+         *
+         * Only the searched parcel receives this label.
+         */
+
+        .target-parcel-label {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+
+        .target-parcel-label::before {
+            display: none !important;
+        }
+
+        .target-parcel-number {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+
+            background: white;
+            border: 3px solid #008000;
+            border-radius: 7px;
+
+            padding: 5px 9px;
+
+            color: #008000;
+
+            font-weight: 700;
+            line-height: 1.1;
+
+            box-shadow:
+                0 2px 6px rgba(0, 0, 0, 0.25);
+        }
+
+        .target-parcel-number span {
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .target-parcel-number strong {
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h2>Catasto Map Viewer</h2>
+</header>
+
+
+<div class="search">
+
+    <label>
+        Search by
+        <select id="searchMode" onchange="switchSearchMode()">
+            <option value="cadastral">
+                Cadastral
+            </option>
+            <option value="address">
+                Address
+            </option>
+            <option value="coordinates">
+                Coordinate Geografiche
+            </option>
+        </select>
+    </label>
+
+
+    <div id="cadastralSearch">
+
+        <label>
+            Comune
+            <select id="comune">
+                <option value="">
+                    Loading comuni...
+                </option>
+            </select>
+        </label>
+
+
+        <label>
+            Foglio
+            <input
+                type="text"
+                id="foglio"
+                value="10"
+                placeholder="Foglio"
+            >
+        </label>
+
+
+        <label>
+            Particella
+            <input
+                type="text"
+                id="particella"
+                value="1"
+                placeholder="Particella"
+            >
+        </label>
+
+
+        <button onclick="searchParcel()">
+            Search Parcel
+        </button>
+
+    </div>
+
+
+    <div id="addressSearch">
+
+        <label>
+            Address
+            <input
+                type="text"
+                id="address"
+                placeholder="Enter street and house number"
+            >
+        </label>
+
+
+        <button onclick="searchAddress()">
+            Search Address
+        </button>
+
+    </div>
+
+
+    <div id="coordinatesSearch" style="display:none;">
+
+        <label>
+            Latitudine
+            <input
+                type="text"
+                id="latitude"
+                placeholder="38.11229523"
+            >
+        </label>
+
+
+        <label>
+            Longitudine
+            <input
+                type="text"
+                id="longitude"
+                placeholder="13.36600123"
+            >
+        </label>
+
+
+        <button onclick="searchCoordinates()">
+            Cerca Coordinate
+        </button>
+
+    </div>
+
+</div>
+
+<div id="addressCadastralResult"></div>
+<div id="map"></div>
+
+
+<div id="result">
+
+    <p id="status">
+        Enter Comune, Foglio and Particella, then search.
+    </p>
+
+
+    <div id="details"></div>
+
+
+    <div id="coordinates" class="coordinates"></div>
+
+
+    <pre id="output">
+No cadastral data loaded yet.
+    </pre>
+
+</div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+
+<script>
+
+    /*
+     * ---------------------------------------------------------
+     * MAP
+     * ---------------------------------------------------------
+     */
+
+    const map = L.map("map").setView(
+        [38.115, 13.36],
+        13
+    );
+
+
+    /*
+     * OpenStreetMap
+     */
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+            attribution:
+                "&copy; OpenStreetMap contributors"
+        }
+    ).addTo(map);
+
+
+    /*
+     * Agenzia Entrate cadastral WMS overlay.
+     */
+
+    /*L.tileLayer.wms(
+        "https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php",
+        {
+            layers: "CP.CadastralParcel",
+            format: "image/png",
+            transparent: true,
+            version: "1.3.0",
+            attribution: "Agenzia delle Entrate"
+        }
+    ).addTo(map);
+    */
+    
+    /*
+     * Currently selected parcel layer.
+     */
+
+    let parcelLayer = null;
+
+
+    /*
+     * Building footprints (fabbricati) found inside the
+     * target parcel, shown in orange on top of it.
+     */
+
+    let buildingsLayer = null;
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * COMUNI
+     * ---------------------------------------------------------
+     */
+
+    async function loadComuni() {
+
+        const select =
+            document.getElementById("comune");
+
+
+        function fitComuneBbox(bbox) {
+
+            if (!bbox) {
+                return;
+            }
+
+
+            const parts =
+                bbox.split(",").map(Number);
+
+
+            if (
+                parts.length !== 4 ||
+                parts.some(
+                    value => !Number.isFinite(value)
+                )
+            ) {
+                return;
+            }
+
+
+            const south = parts[0];
+            const west = parts[1];
+            const north = parts[2];
+            const east = parts[3];
+
+
+            if (
+                south >= north ||
+                west >= east
+            ) {
+                return;
+            }
+
+
+            const bounds =
+                L.latLngBounds(
+                    [south, west],
+                    [north, east]
+                );
+
+
+            map.fitBounds(
+                bounds,
+                {
+                    padding: [20, 20],
+                    maxZoom: 14
+                }
+            );
+
+        }
+
+
+        try {
+
+            const response =
+                await fetch("/comuni");
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Could not load comuni"
+                );
+
+            }
+
+
+            select.innerHTML = "";
+
+
+            data.comuni.forEach(
+                function(comune) {
+
+                    const option =
+                        document.createElement(
+                            "option"
+                        );
+
+
+                    option.value =
+                        comune.code;
+
+
+                    option.textContent =
+                        `${comune.name} (${comune.code})`;
+
+
+                    option.dataset.bbox =
+                        comune.bbox || "";
+
+
+                    /*
+                     * Keep Belmonte Mezzagno
+                     * as the initial Comune.
+                     */
+
+                    if (
+                        comune.code === "A764"
+                    ) {
+
+                        option.selected = true;
+
+                    }
+
+
+                    select.appendChild(
+                        option
+                    );
+
+                }
+            );
+
+
+            if (data.comuni.length === 0) {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+
+                option.value = "";
+
+
+                option.textContent =
+                    "No comuni configured";
+
+
+                select.appendChild(
+                    option
+                );
+
+            }
+
+
+            /*
+             * Move the map whenever
+             * the Comune changes.
+             */
+
+            select.onchange =
+                function() {
+
+                    const selected =
+                        select.options[
+                            select.selectedIndex
+                        ];
+
+
+                    if (!selected) {
+                        return;
+                    }
+
+
+                    const bbox =
+                        selected.dataset.bbox;
+
+
+                    fitComuneBbox(bbox);
+
+
+                    document
+                        .getElementById("status")
+                        .textContent =
+                            `Map moved to ${selected.textContent}.`;
+
+                };
+
+
+            /*
+             * Move the map to the initially
+             * selected Comune.
+             */
+
+            const initial =
+                select.options[
+                    select.selectedIndex
+                ];
+
+
+            if (initial) {
+
+                fitComuneBbox(
+                    initial.dataset.bbox
+                );
+
+            }
+
+
+        } catch (error) {
+
+            select.innerHTML = `
+                <option value="A764">
+                    Belmonte Mezzagno (A764)
+                </option>
+
+                <option value="G273">
+                    Palermo (G273)
+                </option>
+            `;
+
+
+            /*
+             * Attach fallback map movement.
+             */
+
+            const fallbackBboxes = {
+
+                "A764":
+                    "37.9300,13.3300,38.0850,13.4650",
+
+                "G273":
+                    "38.0450,13.2350,38.4550,13.4550"
+
+            };
+
+
+            select.onchange =
+                function() {
+
+                    const bbox =
+                        fallbackBboxes[
+                            select.value
+                        ];
+
+
+                    fitComuneBbox(bbox);
+
+                };
+
+
+            document
+                .getElementById("status")
+                .textContent =
+                    "Comune dropdown could not be loaded from /comuni.";
+
+        }
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * CURRENT MAP BBOX
+     * ---------------------------------------------------------
+     */
+
+    function currentBbox() {
+
+        const bounds =
+            map.getBounds();
+
+
+        const south =
+            bounds.getSouth();
+
+        const west =
+            bounds.getWest();
+
+        const north =
+            bounds.getNorth();
+
+        const east =
+            bounds.getEast();
+
+
+        /*
+         * Keep search area reasonably small.
+         */
+
+        const MAX_LAT_SPAN = 0.01;
+        const MAX_LON_SPAN = 0.01;
+
+
+        const center =
+            map.getCenter();
+
+
+        const halfLat =
+            Math.min(
+                (north - south) / 2,
+                MAX_LAT_SPAN / 2
+            );
+
+
+        const halfLon =
+            Math.min(
+                (east - west) / 2,
+                MAX_LON_SPAN / 2
+            );
+
+
+        const limitedSouth =
+            Math.max(
+                south,
+                center.lat - halfLat
+            );
+
+
+        const limitedNorth =
+            Math.min(
+                north,
+                center.lat + halfLat
+            );
+
+
+        const limitedWest =
+            Math.max(
+                west,
+                center.lng - halfLon
+            );
+
+
+        const limitedEast =
+            Math.min(
+                east,
+                center.lng + halfLon
+            );
+
+
+        return [
+            limitedSouth,
+            limitedWest,
+            limitedNorth,
+            limitedEast
+        ].join(",");
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * DISPLAY HELPERS
+     * ---------------------------------------------------------
+     */
+
+    function parcelTitle(feature, index) {
+
+        const props =
+            feature.properties || {};
+       
+            console.log(
+                        "PARCEL:",
+                        props.LABEL,
+                        "IS_TARGET:",
+                        props.IS_TARGET,
+                        "REFERENCE:",
+                        props.NATIONALCADASTRALREFERENCE
+                    );
+
+        return (
+            props.NATIONALCADASTRALREFERENCE ||
+            props.INSPIREID_LOCALID ||
+            props.LABEL ||
+            `Parcel ${index + 1}`
+        );
+
+    }
+
+
+
+    function renderDetails(data) {
+
+        const details =
+            document.getElementById("details");
+
+
+        details.innerHTML = "";
+
+
+        const features =
+            data.features || [];
+
+
+        features.slice(0, 12).forEach(
+            function(feature, index) {
+
+                const props =
+                    feature.properties || {};
+
+
+                const item =
+                    document.createElement("section");
+
+
+                item.className =
+                    "parcel";
+
+
+                const rows =
+                    Object.entries(props)
+                        .map(
+                            function([key, value]) {
+
+                                return `
+                                    <dt>${key}</dt>
+                                    <dd>${value ?? ""}</dd>
+                                `;
+
+                            }
+                        )
+                        .join("");
+
+
+                item.innerHTML = `
+                    <h4>
+                        ${parcelTitle(
+                            feature,
+                            index
+                        )}
+                    </h4>
+
+                    <dl>
+                        ${rows}
+                    </dl>
+                `;
+
+
+                details.appendChild(item);
+
+            }
+        );
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * COORDINATES
+     * ---------------------------------------------------------
+     */
+
+    function extractCoordinates(feature) {
+
+        const geometry =
+            feature.geometry;
+
+
+        if (!geometry) {
+            return [];
+        }
+
+
+        /*
+         * Polygon
+         */
+
+        if (
+            geometry.type === "Polygon"
+        ) {
+
+            return (
+                geometry.coordinates[0] ||
+                []
+            );
+
+        }
+
+
+        /*
+         * MultiPolygon
+         */
+
+        if (
+            geometry.type === "MultiPolygon"
+        ) {
+
+            if (
+                geometry.coordinates.length > 0 &&
+                geometry.coordinates[0].length > 0
+            ) {
+
+                return (
+                    geometry.coordinates[0][0]
+                );
+
+            }
+
+        }
+
+
+        return [];
+
+    }
+
+
+
+    function renderCoordinates(data) {
+
+        const container =
+            document.getElementById(
+                "coordinates"
+            );
+
+
+        container.innerHTML = "";
+
+
+        if (
+            !data.features ||
+            data.features.length === 0
+        ) {
+
+            return;
+
+        }
+
+
+        const feature =
+            data.features[0];
+
+
+        const coordinates =
+            extractCoordinates(feature);
+
+
+        if (coordinates.length === 0) {
+
+            container.innerHTML =
+                "<p>No polygon coordinates found.</p>";
+
+            return;
+
+        }
+
+
+        let html = `
+            <h3>
+                Polygon Coordinates
+                (${coordinates.length} points)
+            </h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+        `;
+
+
+        coordinates.forEach(
+            function(coord, index) {
+
+                const longitude =
+                    Number(coord[0])
+                        .toFixed(8);
+
+
+                const latitude =
+                    Number(coord[1])
+                        .toFixed(8);
+
+
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${latitude}</td>
+                        <td>${longitude}</td>
+                    </tr>
+                `;
+
+            }
+        );
+
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+
+        container.innerHTML =
+            html;
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * SEARCH
+     * ---------------------------------------------------------
+     */
+function switchSearchMode() {
+
+    const mode =
+        document.getElementById("searchMode").value;
+
+    const cadastralSearch =
+        document.getElementById("cadastralSearch");
+
+    const addressSearch =
+        document.getElementById("addressSearch");
+
+    const coordinatesSearch =
+        document.getElementById("coordinatesSearch");
+
+
+    cadastralSearch.style.display =
+        "none";
+
+    addressSearch.style.display =
+        "none";
+
+    coordinatesSearch.style.display =
+        "none";
+
+
+    if (mode === "address") {
+
+        addressSearch.style.display =
+            "flex";
+
+    } else if (mode === "coordinates") {
+
+        coordinatesSearch.style.display =
+            "flex";
+
+    } else {
+
+        cadastralSearch.style.display =
+            "flex";
+
+    }
+
+}
+
+    async function searchParcel() {
+
+        const comune =
+            document
+                .getElementById("comune")
+                .value
+                .trim();
+
+
+        const foglio =
+            document
+                .getElementById("foglio")
+                .value
+                .trim();
+
+
+        const particella =
+            document
+                .getElementById("particella")
+                .value
+                .trim();
+
+
+        /*
+         * Basic validation.
+         */
+
+        if (!comune) {
+
+            alert(
+                "Please enter a Comune."
+            );
+
+            return;
+
+        }
+
+
+        if (!foglio) {
+
+            alert(
+                "Please enter a Foglio."
+            );
+
+            return;
+
+        }
+
+
+        if (!particella) {
+
+            alert(
+                "Please enter a Particella."
+            );
+
+            return;
+
+        }
+
+
+        /*
+         * Status.
+         */
+
+        document
+            .getElementById("status")
+            .textContent =
+                "Searching cadastral data...";
+
+
+        document
+            .getElementById("output")
+            .textContent =
+                "Searching...";
+
+
+        document
+            .getElementById("details")
+            .innerHTML = "";
+
+
+        document
+            .getElementById("coordinates")
+            .innerHTML = "";
+
+
+        /*
+         * Remove previous parcel layer.
+         */
+
+        if (parcelLayer) {
+
+            map.removeLayer(
+                parcelLayer
+            );
+
+            parcelLayer = null;
+
+        }
+
+        if (buildingsLayer) {
+
+            map.removeLayer(
+                buildingsLayer
+            );
+
+            buildingsLayer = null;
+
+        }
+
+
+        try {
+
+            /*
+             * Send Comune code/name as before.
+             */
+
+            //const bbox = currentBbox();
+            /*
+            * Find the whole Foglio first.
+            *
+            * This prevents the search from being limited
+            * to the currently visible map area.
+            */
+
+
+            /*URL*/
+
+            const bbox = currentBbox();
+
+            console.log("SEARCH BBOX:", bbox);
+
+            const url =
+                `/search` +
+                `?comune=${encodeURIComponent(comune)}` +
+                `&foglio=${encodeURIComponent(foglio)}` +
+                `&particella=${encodeURIComponent(particella)}` +
+                `&bbox=${encodeURIComponent(bbox)}`;
+
+            const response = await fetch(url);
+
+            const contentType =
+                response.headers.get("content-type") || "";
+
+            let data;
+
+            if (contentType.includes("application/json")) {
+
+                data = await response.json();
+
+            } else {
+
+                const text = await response.text();
+
+                console.error(
+                    "Server returned non-JSON:",
+                    text
+                );
+
+                throw new Error(
+                    `Server returned ${response.status} instead of JSON`
+                );
+            }
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    data.hint ||
+                    "Search failed"
+                );
+            }
+
+console.log("SEARCH URL:", url);
+console.log("SEARCH RESULT:", data);
+console.log("MATCHED:", data.matched);
+console.log("MATCHED REFERENCE:", data.matched_reference);
+console.log("SEARCHED:", data.searched);
+
+    /* DATA matched*/
+    /* Zoom to the actual target parcel */
+
+
+            /*
+             * Display JSON.
+             */
+
+            document
+                .getElementById("output")
+                .textContent =
+                    JSON.stringify(
+                        data,
+                        null,
+                        2
+                    );
+
+
+            /*
+             * Status.
+             */
+
+            document
+                .getElementById("status")
+                .textContent =
+                    data.warning ||
+                    `${data.features.length} cadastral parcel(s) loaded.`;
+
+
+            /*
+             * Details.
+             */
+
+            renderDetails(data);
+
+
+            /*
+             * Coordinates.
+             */
+
+            renderCoordinates(data);
+
+
+            /*
+             * Draw parcels.
+             */
+
+            if (
+                data.features &&
+                data.features.length > 0
+            ) {
+
+                /*
+                 * -------------------------------------------------
+                 * TARGET REFERENCES
+                 * -------------------------------------------------
+                 *
+                 * The backend tells us which cadastral reference
+                 * corresponds to the searched parcel.
+                 */
+
+                const targetReferences =
+                    data.searched &&
+                    Array.isArray(
+                        data.searched.references
+                    )
+                        ? data.searched.references
+                        : [];
+
+                console.log(
+                    "TARGET FEATURES:",
+                    data.features.filter(
+                        f => f.properties && (
+                            f.properties.IS_TARGET === true ||
+                            f.properties.IS_TARGET === "true" ||
+                            f.properties.IS_TARGET === 1 ||
+                            f.properties.IS_TARGET === "1"
+                        )
+                    )
+                );
+                parcelLayer = L.geoJSON(
+                                data,
+                                {
+                                    style: function(feature) {
+
+                                        const props =
+                                            feature.properties || {};
+
+                                        const isTarget =
+                                            props.IS_TARGET === true ||
+                                            props.IS_TARGET === "true" ||
+                                            props.IS_TARGET === 1 ||
+                                            props.IS_TARGET === "1";
+
+                                        console.log(
+                                            "STYLE:",
+                                            props.LABEL,
+                                            "IS_TARGET:",
+                                            props.IS_TARGET,
+                                            "TARGET:",
+                                            isTarget
+                                        );
+
+                                        if (isTarget) {
+
+                                            return {
+                                                color: "#008000",
+                                                weight: 4,
+                                                opacity: 1,
+                                                fillColor: "#00c853",
+                                                fillOpacity: 0.65
+                                            };
+
+                                        }
+
+                                        return {
+                                            color: "#b21f2d",
+                                            weight: 1,
+                                            opacity: 0.7,
+                                            fillColor: "#f4d35e",
+                                            fillOpacity: 0.15
+                                        };
+                                    },
+
+
+                                    onEachFeature: function(feature, layer) {
+
+                                        const props =
+                                            feature.properties || {};
+
+                                        const parcelNumber =
+                                            props.LABEL || "Unknown";
+
+                                        const isTarget =
+                                            props.IS_TARGET === true ||
+                                            props.IS_TARGET === "true" ||
+                                            props.IS_TARGET === 1 ||
+                                            props.IS_TARGET === "1";
+
+                                        console.log(
+                                            "PARCEL:",
+                                            parcelNumber,
+                                            "TARGET:",
+                                            isTarget
+                                        );
+
+
+                                        if (isTarget) {
+
+                                            layer.bindTooltip(
+                                                "<strong>F-" +
+                                                data.searched.foglio +
+                                                "</strong><br>" +
+                                                "<strong>P-" +
+                                                parcelNumber +
+                                                "</strong>",
+                                                {
+                                                    permanent: true,
+                                                    direction: "center",
+                                                    className: "target-parcel-label"
+                                                }
+                                            );
+
+                                            /*
+                                             * Add right-click menu
+                                             * to the green target parcel.
+                                             */
+                                            addTargetParcelContextMenu(
+                                                layer
+                                            );
+
+                                            /*
+                                             * Check for buildings
+                                             * (fabbricati) inside it.
+                                             */
+                                            loadParcelBuildings(
+                                                layer
+                                            );
+
+                                        }
+
+
+                                        layer.bindPopup(
+                                            "<strong>Particella:</strong> " +
+                                            parcelNumber
+                                        );
+                                    }
+
+                                }
+                            ).addTo(map);
+
+
+                            /*
+                             * ---------------------------------------------------------
+                             * BUILDING FOOTPRINT LAYER
+                             * ---------------------------------------------------------
+                             *
+                             * Draw the actual building polygon returned by /search.
+                             * The target Particella remains green underneath it.
+                             */
+
+                            if (
+                                data.building_footprints &&
+                                data.building_footprints.length
+                            ) {
+
+                                L.geoJSON(
+                                    {
+                                        type: "FeatureCollection",
+                                        features:
+                                            data.building_footprints
+                                    },
+                                    {
+                                        style: {
+                                            color: "#000000",
+                                            weight: 2,
+                                            opacity: 1,
+                                            fillColor: "#ffffff",
+                                            fillOpacity: 0.75
+                                        },
+
+                                        interactive: false
+                                    }
+                                ).addTo(map);
+
+                            }
+
+
+                            /*
+                            * Zoom to the returned parcels.
+                            */
+
+                            const bounds =
+                                parcelLayer.getBounds();
+
+                            if (bounds.isValid()) {
+
+                                map.fitBounds(
+                                    bounds,
+                                    {
+                                        padding: [30, 30],
+                                        maxZoom: 19
+                                    }
+                                );
+
+                            }
+
+                            /*
+                             * Update nearby parcel labels after
+                             * the initial search zoom.
+                             */
+                            updateParcelLabels();
+
+
+            } else {
+
+                document
+                    .getElementById("status")
+                    .textContent =
+                        "No cadastral parcel found.";
+
+            }
+
+
+        } catch (error) {
+
+            console.error(error);
+
+
+            document
+                .getElementById("output")
+                .textContent =
+                    "ERROR: " +
+                    error.message;
+
+
+            document
+                .getElementById("status")
+                .textContent =
+                    "Search failed.";
+
+        }
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * ADDRESS SEARCH
+     * ---------------------------------------------------------
+     */
+
+    /*
+     * ---------------------------------------------------------
+     * COORDINATE SEARCH
+     * ---------------------------------------------------------
+     *
+     * Search a cadastral parcel directly from latitude/longitude.
+     * The backend returns the exact Particella polygon.
+     *
+     * The returned parcel is marked IS_TARGET so the existing
+     * green target styling and right-click menu can be reused.
+     */
+
+    async function searchCoordinates() {
+
+        const latitude =
+            document
+                .getElementById("latitude")
+                .value
+                .trim();
+
+        const longitude =
+            document
+                .getElementById("longitude")
+                .value
+                .trim();
+
+
+        if (!latitude || !longitude) {
+
+            alert(
+                "Please enter both latitude and longitude."
+            );
+
+            return;
+
+        }
+
+
+        const lat = Number(latitude);
+        const lon = Number(longitude);
+
+
+        if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lon)
+        ) {
+
+            alert(
+                "Latitude and longitude must be valid numbers."
+            );
+
+            return;
+
+        }
+
+
+        if (
+            lat < -90 ||
+            lat > 90 ||
+            lon < -180 ||
+            lon > 180
+        ) {
+
+            alert(
+                "Latitude must be between -90 and 90, " +
+                "and longitude between -180 and 180."
+            );
+
+            return;
+
+        }
+
+
+        document
+            .getElementById("status")
+            .textContent =
+                "Searching cadastral parcel by coordinates...";
+
+
+        document
+            .getElementById("output")
+            .textContent =
+                "Searching...";
+
+
+        document
+            .getElementById("details")
+            .innerHTML = "";
+
+
+        document
+            .getElementById("coordinates")
+            .innerHTML = "";
+
+
+        /*
+         * Remove previous parcel.
+         */
+
+        if (parcelLayer) {
+
+            map.removeLayer(
+                parcelLayer
+            );
+
+            parcelLayer = null;
+
+        }
+
+
+        /*
+         * Remove previous building footprints.
+         */
+
+        if (buildingsLayer) {
+
+            map.removeLayer(
+                buildingsLayer
+            );
+
+            buildingsLayer = null;
+
+        }
+
+
+        try {
+
+            const url =
+                `/search-coordinate` +
+                `?lat=${encodeURIComponent(lat)}` +
+                `&lon=${encodeURIComponent(lon)}`;
+
+
+            console.log(
+                "COORDINATE SEARCH URL:",
+                url
+            );
+
+
+            const response =
+                await fetch(url);
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "COORDINATE SEARCH RESULT:",
+                data
+            );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Coordinate search failed."
+                );
+
+            }
+
+
+            if (!data.found) {
+
+                throw new Error(
+                    "No cadastral parcel was found at these coordinates."
+                );
+
+            }
+
+
+            /*
+             * Display the result.
+             */
+
+            document
+                .getElementById("output")
+                .textContent =
+                    JSON.stringify(
+                        data,
+                        null,
+                        2
+                    );
+
+
+            /*
+             * Display Foglio + Particella.
+             */
+
+            document
+                .getElementById("details")
+                .innerHTML =
+                    "<strong style=\"font-size:16px;\">" +
+                    "Foglio " +
+                    String(data.foglio || "") +
+                    " · Particella " +
+                    String(data.particella || "") +
+                    "</strong>";
+
+
+            /*
+             * Display searched coordinates.
+             */
+
+            document
+                .getElementById("coordinates")
+                .textContent =
+                    "Coordinates: " +
+                    lat.toFixed(8) +
+                    ", " +
+                    lon.toFixed(8);
+
+
+            /*
+             * Build a GeoJSON polygon from the backend
+             * geometry.
+             *
+             * /search-coordinate currently returns the
+             * geometry as ArcGIS rings in the local cadastral
+             * coordinate system.
+             *
+             * Convert those coordinates through the existing
+             * backend result only when they are already in
+             * longitude/latitude form.
+             */
+
+            if (
+                !data.geometry ||
+                !data.geometry.rings ||
+                !data.geometry.rings.length
+            ) {
+
+                throw new Error(
+                    "The coordinate search returned no parcel geometry."
+                );
+
+            }
+
+
+            /*
+             * The current endpoint returns projected cadastral
+             * coordinates. The safest display method is to ask
+             * the backend for the parcel again through the normal
+             * /search endpoint using the returned Foglio/Particella.
+             *
+             * This reuses the existing, tested cadastral rendering,
+             * target styling, right-click menu, and building
+             * footprint logic.
+             */
+
+            const comuneCode =
+                String(
+                    data.comune_code || ""
+                ).trim();
+
+            const foglio =
+                String(
+                    data.foglio || ""
+                ).trim();
+
+            const particella =
+                String(
+                    data.particella || ""
+                ).trim();
+
+
+            if (
+                !comuneCode ||
+                !foglio ||
+                !particella
+            ) {
+
+                throw new Error(
+                    "Coordinate search did not return Comune, Foglio and Particella."
+                );
+
+            }
+
+
+            const searchUrl =
+                `/search` +
+                `?comune=${encodeURIComponent(comuneCode)}` +
+                `&foglio=${encodeURIComponent(foglio)}` +
+                `&particella=${encodeURIComponent(particella)}` +
+                `&bbox=` +
+                encodeURIComponent(
+                    `${lat - 0.0005},${lon - 0.0005},` +
+                    `${lat + 0.0005},${lon + 0.0005}`
+                );
+
+
+            console.log(
+                "LOADING TARGET PARCEL:",
+                searchUrl
+            );
+
+
+            const parcelResponse =
+                await fetch(searchUrl);
+
+
+            const parcelData =
+                await parcelResponse.json();
+
+
+            if (!parcelResponse.ok) {
+
+                throw new Error(
+                    parcelData.error ||
+                    "Unable to load the cadastral parcel."
+                );
+
+            }
+
+
+            /*
+             * Reuse the existing parcel rendering path.
+             */
+
+            document
+                .getElementById("output")
+                .textContent =
+                    JSON.stringify(
+                        parcelData,
+                        null,
+                        2
+                    );
+
+
+            document
+                .getElementById("status")
+                .textContent =
+                    "Cadastral parcel found.";
+
+
+            renderDetails(
+                parcelData
+            );
+
+
+            renderCoordinates(
+                parcelData
+            );
+
+
+            /*
+             * Draw the parcels using the same code path as
+             * the normal cadastral search.
+             */
+
+            if (
+                parcelData.features &&
+                parcelData.features.length
+            ) {
+
+                const targetReferences =
+                    parcelData.searched &&
+                    Array.isArray(
+                        parcelData.searched.references
+                    )
+                        ? parcelData.searched.references
+                        : [];
+
+
+                parcelLayer =
+                    L.geoJSON(
+                        parcelData,
+                        {
+                            style:
+                                function(feature) {
+
+                                    const properties =
+                                        feature.properties || {};
+
+                                    const reference =
+                                        String(
+                                            properties.NATIONALCADASTRALREFERENCE ||
+                                            ""
+                                        ).trim();
+
+                                    const isTarget =
+                                        properties.IS_TARGET === true ||
+                                        properties.IS_TARGET === "true" ||
+                                        properties.IS_TARGET === 1 ||
+                                        properties.IS_TARGET === "1" ||
+                                        targetReferences.includes(
+                                            reference
+                                        );
+
+                                    if (isTarget) {
+
+                                        return {
+                                            color: "#008000",
+                                            weight: 4,
+                                            opacity: 1,
+                                            fillColor: "#00ff00",
+                                            fillOpacity: 0.30
+                                        };
+
+                                    }
+
+                                    return {
+                                        color: "#666666",
+                                        weight: 1,
+                                        opacity: 0.5,
+                                        fillColor: "#999999",
+                                        fillOpacity: 0.05
+                                    };
+
+                                },
+
+                            onEachFeature:
+                                function(feature, layer) {
+
+                                    const properties =
+                                        feature.properties || {};
+
+                                    const reference =
+                                        String(
+                                            properties.NATIONALCADASTRALREFERENCE ||
+                                            ""
+                                        ).trim();
+
+                                    const isTarget =
+                                        properties.IS_TARGET === true ||
+                                        properties.IS_TARGET === "true" ||
+                                        properties.IS_TARGET === 1 ||
+                                        properties.IS_TARGET === "1" ||
+                                        targetReferences.includes(
+                                            reference
+                                        );
+
+                                    if (isTarget) {
+
+                                        addTargetParcelContextMenu(
+                                            layer
+                                        );
+
+                                    }
+
+                                }
+
+                        }
+                    )
+                    .addTo(map);
+
+
+                /*
+                 * Zoom to the target parcel.
+                 */
+
+                const targetLayers = [];
+
+                parcelLayer.eachLayer(
+                    function(layer) {
+
+                        const properties =
+                            layer.feature &&
+                            layer.feature.properties
+                                ? layer.feature.properties
+                                : {};
+
+                        const isTarget =
+                            properties.IS_TARGET === true ||
+                            properties.IS_TARGET === "true" ||
+                            properties.IS_TARGET === 1 ||
+                            properties.IS_TARGET === "1";
+
+                        if (isTarget) {
+
+                            targetLayers.push(
+                                layer
+                            );
+
+                        }
+
+                    }
+                );
+
+
+                if (targetLayers.length) {
+
+                    const targetGroup =
+                        L.featureGroup(
+                            targetLayers
+                        );
+
+                    map.fitBounds(
+                        targetGroup.getBounds(),
+                        {
+                            padding: [30, 30]
+                        }
+                    );
+
+                } else {
+
+                    map.setView(
+                        [lat, lon],
+                        19
+                    );
+
+                }
+
+            }
+
+
+            /*
+             * IMPORTANT:
+             * The normal /search response already contains
+             * building_footprints, so draw them exactly as the
+             * existing cadastral search does.
+             */
+
+            if (
+                parcelData.building_footprints &&
+                parcelData.building_footprints.length
+            ) {
+
+                console.log(
+                    "COORDINATE SEARCH BUILDINGS:",
+                    parcelData.building_footprints
+                );
+
+
+                buildingsLayer =
+                    L.geoJSON(
+                        {
+                            type:
+                                "FeatureCollection",
+
+                            features:
+                                parcelData.building_footprints
+
+                        },
+                        {
+                            style:
+                                function() {
+
+                                    return {
+                                        color: "#e65100",
+                                        weight: 3,
+                                        opacity: 1,
+                                        fillColor: "#ff9800",
+                                        fillOpacity: 0.70
+                                    };
+
+                                },
+
+                            interactive: false
+
+                        }
+                    )
+                    .addTo(map);
+
+
+                console.log(
+                    "BUILDING FOOTPRINT LAYER ADDED:",
+                    buildingsLayer.getLayers().length
+                );
+
+            } else {
+
+                console.log(
+                    "NO BUILDING FOOTPRINTS FOR THIS PARCEL."
+                );
+
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                "COORDINATE SEARCH ERROR:",
+                error
+            );
+
+            document
+                .getElementById("status")
+                .textContent =
+                    "Coordinate search failed.";
+
+            document
+                .getElementById("output")
+                .textContent =
+                    error.message ||
+                    String(error);
+
+            alert(
+                error.message ||
+                "Coordinate search failed."
+            );
+
+        }
+
+    }
+
+
+
+    async function searchAddress() {
+
+        const address =
+            document
+                .getElementById("address")
+                .value
+                .trim();
+
+
+        if (!address) {
+
+            alert(
+                "Please enter an address."
+            );
+
+            return;
+
+        }
+
+
+        document
+            .getElementById("status")
+            .textContent =
+                "Finding address and cadastral parcel...";
+
+
+        document
+            .getElementById("output")
+            .textContent =
+                "Searching...";
+
+
+        document
+            .getElementById("details")
+            .innerHTML = "";
+
+
+        document
+            .getElementById("coordinates")
+            .innerHTML = "";
+
+
+        /*
+         * Remove previous parcel layer.
+         */
+
+        if (parcelLayer) {
+
+            map.removeLayer(
+                parcelLayer
+            );
+
+            parcelLayer = null;
+
+        }
+
+        if (buildingsLayer) {
+
+            map.removeLayer(
+                buildingsLayer
+            );
+
+            buildingsLayer = null;
+
+        }
+
+
+        try {
+
+            const url =
+                `/address-search?address=` +
+                encodeURIComponent(address);
+
+
+            console.log(
+                "ADDRESS SEARCH URL:",
+                url
+            );
+
+
+            const response =
+                await fetch(url);
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "ADDRESS SEARCH RESULT:",
+                data
+            );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Address search failed."
+                );
+
+            }
+
+
+            /*
+             * Display the useful result.
+             */
+
+            document
+                .getElementById("output")
+                .textContent =
+                    JSON.stringify(
+                        data,
+                        null,
+                        2
+                    );
+
+
+            /*
+             * Address result.
+             */
+
+            let detailsHtml =
+                "<strong>Address:</strong> " +
+                (data.display_name || address);
+
+
+            if (
+                data.foglio &&
+                data.particella
+            ) {
+
+                detailsHtml +=
+                        "<br><br>" +
+                        "<strong style=\"font-size:16px;\">" +
+                        "Foglio " +
+                        data.foglio +
+                        " · Particella " +
+                        data.particella +
+                        "</strong>";
+
+            }
+
+
+            if (
+                data.cadastral_reference
+            ) {
+
+                detailsHtml +=
+                    "<br><strong>Cadastral reference:</strong> " +
+                    data.cadastral_reference;
+
+            }
+
+
+            document
+                .getElementById("details")
+                .innerHTML =
+                    detailsHtml;
+
+
+            /*
+             * Coordinates.
+             */
+
+            document
+                .getElementById("coordinates")
+                .textContent =
+                    "Coordinates: " +
+                    Number(data.lat).toFixed(8) +
+                    ", " +
+                    Number(data.lon).toFixed(8);
+
+
+            /*
+             * Draw the exact parcel returned
+             * by the address search.
+             */
+
+            const addressParticella =
+                String(data.particella || "").trim();
+
+            const cadastralReference =
+                String(data.cadastral_reference || "").trim();
+
+            const isRoad =
+                addressParticella.toUpperCase().startsWith("STRADA") ||
+                cadastralReference
+                    .toUpperCase()
+                    .includes(".STRADA");
+
+
+            if (
+                data.parcel &&
+                data.particella &&
+                !isRoad
+            ) {
+
+                const targetParcel =
+                    data.parcel;
+
+
+                /*
+                 * Mark this feature as the target
+                 * so it uses the same green style
+                 * as the cadastral search.
+                 */
+
+                targetParcel.properties =
+                    targetParcel.properties || {};
+
+                targetParcel.properties.IS_TARGET =
+                    true;
+
+
+                parcelLayer =
+                    L.geoJSON(
+                        targetParcel,
+                        {
+
+                            style: function() {
+
+                                return {
+                                    color: "#008000",
+                                    weight: 4,
+                                    opacity: 1,
+                                    fillColor: "#00c853",
+                                    fillOpacity: 0.65
+                                };
+
+                            },
+
+
+                            onEachFeature:
+                                function(
+                                    feature,
+                                    layer
+                                ) {
+
+                                    const props =
+                                        feature.properties ||
+                                        {};
+
+                                    const parcelNumber =
+                                        props.LABEL ||
+                                        data.particella ||
+                                        "Unknown";
+
+
+                                    layer.bindTooltip(
+                                            "<span>Foglio " +
+                                            (data.foglio || "—") +
+                                            "</span><br>" +
+                                            "<strong>Particella " +
+                                            parcelNumber +
+                                            "</strong>",
+                                            {
+                                                permanent: true,
+                                                direction: "center",
+                                                className:
+                                                    "target-parcel-label"
+                                            }
+                                    );
+
+
+                                    layer.bindPopup(
+                                        "<strong>Address:</strong> " +
+                                        (
+                                            data.display_name ||
+                                            address
+                                        ) +
+                                        "<br><strong>Foglio:</strong> " +
+                                        (
+                                            data.foglio ||
+                                            "Unknown"
+                                        ) +
+                                        "<br><strong>Particella:</strong> " +
+                                        parcelNumber
+                                    );
+
+                                    /*
+                                     * Add right-click menu
+                                     * to the green target parcel,
+                                     * same as the cadastral search.
+                                     */
+                                    addTargetParcelContextMenu(
+                                        layer
+                                    );
+
+                                    /*
+                                     * Check for buildings
+                                     * (fabbricati) inside it.
+                                     */
+                                    loadParcelBuildings(
+                                        layer
+                                    );
+
+                                }
+
+                        }
+                    ).addTo(map);
+
+
+                /*
+                 * Zoom directly to the parcel.
+                 */
+
+                const bounds =
+                    parcelLayer.getBounds();
+
+
+                if (bounds.isValid()) {
+
+                    map.fitBounds(
+                        bounds,
+                        {
+                            padding: [40, 40],
+                            maxZoom: 19
+                        }
+                    );
+
+                }
+
+
+                document
+                    .getElementById("status")
+                    .textContent =
+                        "Parcel found: Foglio " +
+                        data.foglio +
+                        ", Particella " +
+                        data.particella;
+
+            } else if (
+                isRoad &&
+                Array.isArray(data.foglio_features) &&
+                data.foglio_features.length > 0
+            ) {
+
+                /*
+                 * Address matched a cadastral road.
+                 * Show the normal numeric Particelle
+                 * belonging to the same Foglio.
+                 *
+                 * These are NOT exact matches, so none
+                 * of them receives the green target style.
+                 */
+
+                const foglioLayer =
+                    L.geoJSON(
+                        data.foglio_features,
+                        {
+
+                            style: function() {
+
+                                return {
+                                    color: "#555555",
+                                    weight: 1,
+                                    opacity: 0.9,
+                                    fillColor: "#cccccc",
+                                    fillOpacity: 0.20
+                                };
+
+                            },
+
+                            onEachFeature:
+                                function(feature, layer) {
+
+                                    const props =
+                                        feature.properties || {};
+
+                                    const parcelNumber =
+                                        props.LABEL ||
+                                        "Unknown";
+
+                                    layer.bindTooltip(
+                                        "Foglio " +
+                                        (data.foglio || "—") +
+                                        "<br><strong>Particella " +
+                                        parcelNumber +
+                                        "</strong>",
+                                        {
+                                            permanent: true,
+                                            direction: "center"
+                                        }
+                                    );
+
+                                    layer.bindPopup(
+                                        "<strong>Foglio:</strong> " +
+                                        (data.foglio || "Unknown") +
+                                        "<br><strong>Particella:</strong> " +
+                                        parcelNumber
+                                    );
+
+                                }
+
+                        }
+                    ).addTo(map);
+
+
+                const foglioBounds =
+                    foglioLayer.getBounds();
+
+
+                if (foglioBounds.isValid()) {
+
+                    map.fitBounds(
+                        foglioBounds,
+                        {
+                            padding: [40, 40],
+                            maxZoom: 17
+                        }
+                    );
+
+                }
+
+
+                document
+                    .getElementById("status")
+                    .textContent =
+                        "Address found on a road in Foglio " +
+                        data.foglio +
+                        ". Showing " +
+                        data.foglio_features.length +
+                        " Particelle.";
+
+
+            } else {
+
+                /*
+                 * Address was found, but no
+                 * cadastral polygon was found.
+                 */
+
+                map.setView(
+                    [
+                        data.lat,
+                        data.lon
+                    ],
+                    19
+                );
+
+
+                document
+                    .getElementById("status")
+                    .textContent =
+                        "Address found, but no cadastral parcel was found at this location.";
+
+            }
+
+        } catch (error) {
+
+            console.error(
+                "ADDRESS SEARCH ERROR:",
+                error
+            );
+
+
+            document
+                .getElementById("status")
+                .textContent =
+                    "Address search failed.";
+
+
+            document
+                .getElementById("output")
+                .textContent =
+                    "ERROR: " +
+                    error.message;
+
+        }
+
+    }
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * ZOOM-BASED PARCEL LABELS
+     * ---------------------------------------------------------
+     *
+     * Nearby parcel labels appear only when zoomed in.
+     * The target parcel label remains permanently visible.
+     */
+
+    function updateParcelLabels() {
+
+        if (!parcelLayer) {
+            return;
+        }
+
+        const zoom = map.getZoom();
+
+        /*
+         * Nearby-label distance.
+         *
+         * Coordinates are longitude/latitude degrees.
+         * 0.0025 degrees is roughly 250 metres around Palermo.
+         */
+        const MAX_DISTANCE = 0.0025;
+
+        /*
+         * Find the target parcel first.
+         */
+        let targetLayer = null;
+
+        parcelLayer.eachLayer(function(layer) {
+
+            const feature =
+                layer.feature || {};
+
+            const props =
+                feature.properties || {};
+
+            const isTarget =
+                props.IS_TARGET === true ||
+                props.IS_TARGET === "true" ||
+                props.IS_TARGET === 1 ||
+                props.IS_TARGET === "1";
+
+            if (isTarget) {
+                targetLayer = layer;
+            }
+
+        });
+
+        /*
+         * If there is no target, there is nothing
+         * to use as the centre of the nearby search.
+         */
+        if (!targetLayer) {
+            return;
+        }
+
+        const targetFeature =
+            targetLayer.feature || {};
+
+        const targetProps =
+            targetFeature.properties || {};
+
+        const targetReference =
+            String(
+                targetProps.NATIONALCADASTRALREFERENCE || ""
+            ).trim().toUpperCase();
+
+        /*
+         * Extract the Foglio reference.
+         *
+         * Example:
+         * G273_013800.660
+         *
+         * becomes:
+         * G273_013800
+         */
+        const targetPrefix =
+            targetReference.includes(".")
+                ? targetReference.split(".")[0]
+                : "";
+
+        /*
+         * Use the target parcel centroid as the
+         * centre of the nearby-parcel search.
+         */
+        let targetCenter = null;
+
+        try {
+
+            const targetBounds =
+                targetLayer.getBounds();
+
+            if (targetBounds.isValid()) {
+                targetCenter =
+                    targetBounds.getCenter();
+            }
+
+        } catch (error) {
+
+            console.warn(
+                "Could not determine target parcel centre:",
+                error
+            );
+
+        }
+
+        if (!targetCenter) {
+            return;
+        }
+
+        parcelLayer.eachLayer(function(layer) {
+
+            const feature =
+                layer.feature || {};
+
+            const props =
+                feature.properties || {};
+
+            const isTarget =
+                props.IS_TARGET === true ||
+                props.IS_TARGET === "true" ||
+                props.IS_TARGET === 1 ||
+                props.IS_TARGET === "1";
+
+            /*
+             * Target label is always visible.
+             */
+            if (isTarget) {
+                return;
+            }
+
+            /*
+             * Do not label anything when zoomed out.
+             */
+            if (zoom < 17) {
+
+                if (layer.getTooltip()) {
+                    layer.closeTooltip();
+                    layer.unbindTooltip();
+                }
+
+                return;
+
+            }
+
+            /*
+             * Determine parcel centre.
+             */
+            let center = null;
+
+            try {
+
+                const bounds =
+                    layer.getBounds();
+
+                if (bounds.isValid()) {
+                    center =
+                        bounds.getCenter();
+                }
+
+            } catch (error) {
+
+                return;
+
+            }
+
+            if (!center) {
+                return;
+            }
+
+            /*
+             * Approximate geographic distance.
+             *
+             * Leaflet distance() returns metres.
+             */
+            const distance =
+                map.distance(
+                    targetCenter,
+                    center
+                );
+
+            /*
+             * Only show labels for parcels
+             * within the nearby radius.
+             */
+            if (
+                distance <=
+                MAX_DISTANCE * 111000
+            ) {
+
+                const parcelNumber =
+                    props.LABEL || "Unknown";
+
+                if (!layer.getTooltip()) {
+
+                    layer.bindTooltip(
+                        "P-" + parcelNumber,
+                        {
+                            permanent: true,
+                            direction: "center",
+                            className:
+                                "parcel-number-label"
+                        }
+                    );
+
+                }
+
+                if (!layer.isTooltipOpen()) {
+                    layer.openTooltip();
+                }
+
+            } else {
+
+                if (layer.getTooltip()) {
+                    layer.closeTooltip();
+                    layer.unbindTooltip();
+                }
+
+            }
+
+        });
+
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * BUILDINGS (FABBRICATI) INSIDE THE TARGET PARCEL
+     * ---------------------------------------------------------
+     *
+     * The cadastral WFS has no building layer, so we ask the
+     * backend to look up OpenStreetMap building footprints
+     * clipped to the target parcel and shade any that are
+     * found in orange, on top of the green parcel.
+     */
+
+    async function loadParcelBuildings(layer) {
+
+        const feature =
+            layer.feature || {};
+
+        const geometry =
+            feature.geometry;
+
+        if (!geometry) {
+            return;
+        }
+
+        try {
+
+            const response =
+                await fetch(
+                    "/parcel-buildings",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+                        body: JSON.stringify({
+                            geometry: geometry
+                        })
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+
+                console.warn(
+                    "Building lookup failed:",
+                    data.error
+                );
+
+                return;
+
+            }
+
+            if (
+                !data.features ||
+                data.features.length === 0
+            ) {
+                return;
+            }
+
+            /*
+             * A newer search may have already replaced this
+             * parcel by the time the lookup comes back.
+             */
+            if (!map.hasLayer(layer)) {
+                return;
+            }
+
+            if (buildingsLayer) {
+
+                map.removeLayer(
+                    buildingsLayer
+                );
+
+                buildingsLayer = null;
+
+            }
+
+            buildingsLayer =
+                L.geoJSON(
+                    data,
+                    {
+                        style: function() {
+
+                            return {
+                                color: "#e65100",
+                                weight: 2,
+                                opacity: 1,
+                                fillColor: "#ff9800",
+                                fillOpacity: 0.55
+                            };
+
+                        },
+
+                        onEachFeature:
+                            function(
+                                buildingFeature,
+                                buildingLayer
+                            ) {
+
+                                buildingLayer.bindPopup(
+                                    "<strong>Fabbricato</strong>" +
+                                    (
+                                        buildingFeature.properties &&
+                                        buildingFeature.properties.BUILDING
+                                            ? "<br>" +
+                                                buildingFeature.properties.BUILDING
+                                            : ""
+                                    )
+                                );
+
+                            }
+
+                    }
+                ).addTo(map);
+
+        } catch (error) {
+
+            console.warn(
+                "Building lookup error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * TARGET PARCEL RIGHT-CLICK MENU
+     * ---------------------------------------------------------
+     *
+     * Right-clicking the green target parcel opens a menu
+     * containing:
+     *
+     *   - Visura catastale
+     *   - Visura ipotecaria
+     *
+     * The selected page receives Foglio and Particella
+     * through URL parameters.
+     */
+
+    function addTargetParcelContextMenu(layer) {
+
+        const feature =
+            layer.feature || {};
+
+        const props =
+            feature.properties || {};
+
+        const isTarget =
+            props.IS_TARGET === true ||
+            props.IS_TARGET === "true" ||
+            props.IS_TARGET === 1 ||
+            props.IS_TARGET === "1";
+
+        if (!isTarget) {
+            return;
+        }
+
+        const reference =
+            String(
+                props.NATIONALCADASTRALREFERENCE || ""
+            ).trim();
+
+        let foglio = "";
+        let particella = "";
+
+        /*
+         * Example:
+         *
+         * G273_013800.660
+         *
+         * Foglio = 138
+         * Particella = 660
+         */
+
+        const match =
+            reference.match(
+                /^[A-Z0-9]+_(\d{4})[^.]*\.(.+)$/i
+            );
+
+        if (match) {
+
+            foglio =
+                String(
+                    parseInt(
+                        match[1],
+                        10
+                    )
+                );
+
+            particella =
+                match[2];
+
+        }
+
+        /*
+         * Fallback to the visible parcel label.
+         */
+        if (!particella) {
+
+            particella =
+                String(
+                    props.LABEL || ""
+                ).trim();
+
+        }
+
+        if (!foglio || !particella) {
+
+            console.warn(
+                "Could not determine Foglio/Particella:",
+                props
+            );
+
+            return;
+
+        }
+
+        /*
+         * Determine the geographical centre of the
+         * target green polygon before creating the menu.
+         */
+        let polygonCenter = null;
+
+        try {
+
+            const bounds =
+                layer.getBounds();
+
+            if (bounds.isValid()) {
+
+                polygonCenter =
+                    bounds.getCenter();
+
+            }
+
+        } catch (error) {
+
+            console.warn(
+                "Could not determine target polygon centre:",
+                error
+            );
+
+        }
+
+        if (!polygonCenter) {
+
+            console.warn(
+                "Target polygon has no valid centre."
+            );
+
+            return;
+
+        }
+
+        const geographicLat =
+            encodeURIComponent(
+                polygonCenter.lat.toFixed(8)
+            );
+
+        const geographicLon =
+            encodeURIComponent(
+                polygonCenter.lng.toFixed(8)
+            );
+
+        layer.on(
+            "contextmenu",
+            function(event) {
+
+                const foglioParam =
+                    encodeURIComponent(
+                        foglio
+                    );
+
+                const particellaParam =
+                    encodeURIComponent(
+                        particella
+                    );
+
+                const menu =
+                    L.popup({
+                        closeButton: true,
+                        autoClose: true,
+                        closeOnClick: true
+                    })
+                    .setLatLng(
+                        event.latlng
+                    )
+                    .setContent(
+                        `
+                        <div style="
+                            min-width:190px;
+                            font-family:Arial,sans-serif;
+                        ">
+
+                            <div style="
+                                font-weight:bold;
+                                font-size:15px;
+                                margin-bottom:10px;
+                            ">
+                                Foglio ${foglio}
+                                ·
+                                Particella ${particella}
+                            </div>
+
+                            <button
+                                type="button"
+                                onclick="
+                                    window.open(
+                                        '/visura-catastale?foglio=${foglioParam}&particella=${particellaParam}',
+                                        '_blank'
+                                    );
+                                "
+                                style="
+                                    display:block;
+                                    width:100%;
+                                    margin-bottom:6px;
+                                    padding:8px;
+                                    cursor:pointer;
+                                "
+                            >
+                                Visura catastale
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="
+                                    window.open(
+                                        '/visura-ipotecaria?foglio=${foglioParam}&particella=${particellaParam}',
+                                        '_blank'
+                                    );
+                                "
+                                style="
+                                    display:block;
+                                    width:100%;
+                                    margin-bottom:6px;
+                                    padding:8px;
+                                    cursor:pointer;
+                                "
+                            >
+                                Visura ipotecaria
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="
+                                    window.open(
+                                        '/visura-geografica?lat=${geographicLat}&lon=${geographicLon}&foglio=${foglioParam}&particella=${particellaParam}',
+                                        '_blank'
+                                    );
+                                "
+                                style="
+                                    display:block;
+                                    width:100%;
+                                    padding:8px;
+                                    cursor:pointer;
+                                "
+                            >
+                                Visura via Coordinate Geografica
+                            </button>
+
+                        </div>
+                        `
+                    )
+                    .openOn(map);
+
+            }
+        );
+
+    }
+
+
+    /*
+     * Update labels whenever the map zoom changes.
+     */
+
+    map.on(
+        "zoomend",
+        updateParcelLabels
+    );
+
+
+    /*
+     * ---------------------------------------------------------
+     * ENTER KEY
+     * ---------------------------------------------------------
+     */
+
+    document
+        .querySelectorAll(
+            "input, select"
+        )
+        .forEach(
+            function(input) {
+
+                input.addEventListener(
+                    "keydown",
+                    function(event) {
+
+                        if (
+                            event.key === "Enter"
+                        ) {
+
+                            searchParcel();
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+
+
+    /*
+     * ---------------------------------------------------------
+     * INITIAL LOAD
+     * ---------------------------------------------------------
+     */
+
+    loadComuni();
+
+</script>
+
+</body>
+</html>
